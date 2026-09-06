@@ -18,8 +18,8 @@ return function(Window)
     }
 
     local function CloneReference(Object)
-        if Abysall and Abysall.Environment.cloneref then
-            return Abysall.Environment.cloneref(Object)
+        if BlackKing and BlackKing.Environment.cloneref then
+            return BlackKing.Environment.cloneref(Object)
         else
             return Object
         end
@@ -31,9 +31,9 @@ return function(Window)
         end
     })
 
-    local Library = Abysall.Interface.Library
-    local SaveManager = Abysall.Interface.SaveManager
-    local ThemeManager = Abysall.Interface.ThemeManager
+    local Library = BlackKing.Interface.Library
+    local SaveManager = BlackKing.Interface.SaveManager
+    local ThemeManager = BlackKing.Interface.ThemeManager
 
     local Toggles = Library.Toggles
     local Options = Library.Options
@@ -53,7 +53,7 @@ return function(Window)
     })
 
     User:AddLabel("ID: " .. LocalPlayer.Name, true)
-    User:AddLabel("Total Executions: " .. (Abysall.TotalExecutions and Abysall.TotalExecutions or "N/A"), true)
+    User:AddLabel("Total Executions: " .. (BlackKing.TotalExecutions and BlackKing.TotalExecutions or "N/A"), true)
 
     local changelogText = table.concat(LatestChangelog, "\n")
     InfoTab:UpdateWarningBox({
@@ -64,14 +64,14 @@ return function(Window)
         LockSize = true,
     })
 
-    local Name, Version = Abysall.Environment.identifyexecutor()
+    local Name, Version = BlackKing.Environment.identifyexecutor()
     local Executor = InfoTab:AddRightGroupbox("Executor Info")
     Executor:AddLabel("Name: " .. Name, true)
 	Executor:AddLabel("Version: " .. (Version and Version or "N/A"), true)
     Executor:AddDivider()
     Executor:AddLabel("Test Result: ", true)
 
-    for Index, Result in pairs(Abysall.Environment.Results) do
+    for Index, Result in pairs(BlackKing.Environment.Results) do
 		-- fix for veloshitty 💔
 		Result = Result:gsub("<", "(")
 		Result = Result:gsub(">", ")")
@@ -81,7 +81,7 @@ return function(Window)
 
     local Community = InfoTab:AddLeftGroupbox("Community")
     Community:AddButton("Copy Discord Invite", function()
-	    toclipboard("https://dsc.gg/abysallhub")
+	    toclipboard("https://dsc.gg/BlackKinghub")
 	    Library:Notify("Discord invite copied.")
     end)
 	    local Donation = InfoTab:AddLeftGroupbox("Donation")
