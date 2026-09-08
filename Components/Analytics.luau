@@ -3,6 +3,7 @@
     Sends execution data to the localhost server (/api/send).
     The server handles the discord webhook - the webhook URL never leaves the server.
     Logs: roblox username, executor used, game, placeid, total executions and HWID.
+    V1
 ]]
 
 local function CloneReference(Object)
@@ -20,7 +21,6 @@ local Services = setmetatable({}, {
 })
 
 local DashboardUrl = "http://localhost:10577/api/send"
-local ApiKey = "BhJx9Kq2LmW4RvTs7"
 
 local Charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
@@ -64,8 +64,7 @@ task.spawn(function()
                 Url = DashboardUrl,
                 Method = "POST",
                 Headers = {
-                    ["content-type"] = "application/json",
-                    ["x-api-key"] = ApiKey
+                    ["content-type"] = "application/json"
                 },
                 Body = Services.HttpService:JSONEncode(ApiData)
             })
