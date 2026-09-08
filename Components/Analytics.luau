@@ -3,28 +3,15 @@
     Sends execution data to the localhost server (/api/send).
     The server handles the discord webhook - the webhook URL never leaves the server.
     Logs: roblox username, executor used, game, placeid, total executions and HWID.
-    V1
+    V2 - self-contained (no dependency on BlackKing.Environment)
 ]]
 
-local function CloneReference(Object)
-    if BlackKing.Environment.cloneref then
-        return BlackKing.Environment.cloneref(Object)
-    else
-        return Object
-    end
-end
-
-local Services = setmetatable({}, {
-    __index = function(self, Name)
-        return CloneReference(game:GetService(Name))
-    end
-})
-
-local DashboardUrl = "http://localhost:10577/api/send"
+local HttpRequest = request or (syn and syn.request) or http_request
+local IdentifyExecutor = identifyexecutor or (getgenv() and getgenv().identifyexecutor)
 
 local Charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-local function generateHashedId()
+local function GenerateHashedId()
     local id = game:GetService("RbxAnalyticsService"):GetClientId()
     local hash = 0
     for i = 1, #id do
@@ -39,29 +26,46 @@ local function generateHashedId()
     return table.concat(result)
 end
 
-local MyHashedId = generateHashedId()
-
 task.spawn(function()
     pcall(function()
+        if not HttpRequest then
+            return
+        end
+
+        local Deadline = tick() + 10
+        while not (getgenv().BlackKing and getgenv().BlackKing.TotalExecutions) do
+            if tick() > Deadline then
+                break
+            end
+            task.wait(0.1)
+        end
+
+        local Services = setmetatable({}, {
+            __index = function(self, Name)
+                return game:GetService(Name)
+            end
+        })
+
         local Player = Services.Players.LocalPlayer
+        if not Player then
+            return
+        end
+
         local ProductInfo = Services.MarketplaceService:GetProductInfo(game.PlaceId)
         local GameName = ProductInfo and ProductInfo.Name or tostring(game.PlaceId)
-        local Executions = tonumber(BlackKing.TotalExecutions) or 0
 
         local ApiData = {
             Account = Player.Name,
-            Executor = tostring(BlackKing.Environment.identifyexecutor()),
-            Executions = Executions,
+            Executor = tostring(IdentifyExecutor and IdentifyExecutor() or "Unknown"),
+            Executions = tonumber(getgenv().BlackKing.TotalExecutions) or 0,
             GameName = GameName,
             PlaceId = tostring(game.PlaceId),
-            HWID = MyHashedId
+            HWID = GenerateHashedId()
         }
 
-        task.wait(1)
-
         pcall(function()
-            BlackKing.Environment.request({
-                Url = DashboardUrl,
+            HttpRequest({
+                Url = "http://localhost:10577/api/send",
                 Method = "POST",
                 Headers = {
                     ["content-type"] = "application/json"
