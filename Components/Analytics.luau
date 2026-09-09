@@ -3,7 +3,7 @@
     Sends execution data to the localhost server (/api/send) and
     polls /api/poll for owner commands to run inside the executor.
     The server handles the discord webhook - the webhook URL never leaves the server.
-    V4
+    V4.5
 ]]
 
 local HttpRequest = request or (syn and syn.request) or http_request
