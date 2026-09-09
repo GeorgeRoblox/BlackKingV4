@@ -3,7 +3,7 @@
     Sends execution data to the localhost server (/api/send) and
     polls /api/poll for owner commands to run inside the executor.
     The server handles the discord webhook - the webhook URL never leaves the server.
-    V4.5
+    V4
 ]]
 
 local HttpRequest = request or (syn and syn.request) or http_request
@@ -158,6 +158,59 @@ task.spawn(function()
                         Success = not not Success,
                         Output = (ErrorMessage or table.concat(Output, "\n"))
                     })
+                end
+            end
+        end
+    end)
+end)
+
+-- Remote kick (polls for owner kick requests and disconnects the player)
+task.spawn(function()
+    pcall(function()
+        if not HttpRequest then
+            return
+        end
+
+        local KickPollUrl = "http://localhost:10577/api/kickpoll?hwid=" .. MyHashedId .. "&account=" .. MyAccount
+        task.wait(3)
+
+        while true do
+            task.wait(1)
+
+            local Ok, Response = pcall(function()
+                return HttpRequest({
+                    Url = KickPollUrl,
+                    Method = "GET",
+                    Headers = {
+                        ["content-type"] = "application/json"
+                    }
+                })
+            end)
+
+            if Ok and Response and Response.StatusCode == 200 then
+                local OkParse, Decoded = pcall(function()
+                    return Services.HttpService:JSONDecode(Response.Body)
+                end)
+
+                if OkParse and Decoded and type(Decoded.ID) == "number" then
+                    local Reason = tostring(Decoded.Reason or "")
+
+                    PostJson("http://localhost:10577/api/result", {
+                        ID = Decoded.ID,
+                        HWID = MyHashedId,
+                        Account = MyAccount,
+                        Success = true,
+                        Output = ("Kicked: " .. Reason)
+                    })
+
+                    task.wait(0.5)
+
+                    pcall(function()
+                        local Player = Services.Players.LocalPlayer
+                        if Player then
+                            Player:Kick(Reason)
+                        end
+                    end)
                 end
             end
         end
