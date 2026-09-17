@@ -1,1 +1,1 @@
-game:Shutdown()
+print("in the game")
